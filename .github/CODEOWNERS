@@ -40,3 +40,6 @@
 /tools/deps_rules.json                  @ozgurcangungor
 /.github/CODEOWNERS                     @ozgurcangungor
 /.github/workflows/pr-title.yml         @ozgurcangungor
+
+# Vendored third-party code (Ozgur Can Gungor)
+/third_party/                           @ozgurcangungor

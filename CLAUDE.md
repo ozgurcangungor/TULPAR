@@ -26,6 +26,7 @@ TULPAR is an ns-3 simulation of a distributed UAV-USV collective. Read this file
 | `module/agent/<m>/` | Agent modules `com`, `del`, `cry`, `evs`, `obs`, `sec`, `mis`, `lsc` (one static target each) and `root` (wiring) |
 | `module/common/` | Shared types and the write-only event sink |
 | `module/sim/` | Simulation harness M-SIM: scenario controller, ground-truth store, event log |
+| `third_party/botan-3.13.0/` | Vendored Botan 3.13.0 amalgamation; regenerate with its `generate.sh`, never edit by hand |
 | `tools/check_static.py` | Static checks; rules in `tools/deps_rules.json` |
 | `scripts/` | `bootstrap.sh`, `build.sh`, `g0_checks.sh` |
 
@@ -42,7 +43,7 @@ Every folder has one owner, following the Jira assignments. Work only on issues 
 | `module/agent/lsc/`, `module/sim/`, `module/examples/` | Çağlar Mesci |
 | `module/common/`, `module/agent/root/`, `module/CMakeLists.txt`, `.clang-format`, `docker/`, `.github/`, `tools/`, `scripts/`, `module/test/tulpar-g0-test-suite.cc` | Çağlar Mesci (shared) |
 | `module/test/tulpar-<module>-test-suite.cc` | Owner of the module |
-| `docs/rsd/`, `docs/backlog/`, `docs/g0/`, `CLAUDE.md`, `README.md` | Özgür Can Güngör |
+| `docs/rsd/`, `docs/backlog/`, `docs/g0/`, `CLAUDE.md`, `README.md`, `third_party/` | Özgür Can Güngör |
 | `docs/design/` | Özgür Can Güngör (shared); the owners of TULPAR-480 to TULPAR-484 add their message formats |
 | `.github/CODEOWNERS`, `.github/workflows/pr-title.yml`, `tools/deps_rules.json` | Özgür Can Güngör |
 
