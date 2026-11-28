@@ -19,11 +19,67 @@ namespace tulpar
 namespace crypto
 {
 
+namespace
+{
+
+/// SHA-384 block size in bytes; HMAC hashes longer keys first (RFC 2104).
+constexpr std::size_t kSha384BlockSize = 128;
+
+} // namespace
+
 std::string
 LinkedBotanVersion()
 {
     return std::to_string(Botan::version_major()) + "." + std::to_string(Botan::version_minor()) +
            "." + std::to_string(Botan::version_patch());
+}
+
+Bytes
+Sha384(ByteView data)
+{
+    auto hash = Botan::HashFunction::create_or_throw("SHA-384");
+    hash->update(data);
+    return hash->final_stdvec();
+}
+
+Bytes
+HmacSha384(ByteView key, ByteView data)
+{
+    auto mac = Botan::MessageAuthenticationCode::create_or_throw("HMAC(SHA-384)");
+    // Hashing a long key here gives the same tag (RFC 2104) and keeps every key length within
+    // the 8192 bytes that Botan's HMAC accepts.
+    if (key.size() > kSha384BlockSize)
+    {
+        mac->set_key(Sha384(key));
+    }
+    else
+    {
+        mac->set_key(key);
+    }
+    mac->update(data);
+    return mac->final_stdvec();
+}
+
+bool
+HmacSha384Verify(ByteView key, ByteView data, ByteView tag)
+{
+    if (tag.size() < kHmacMinTagSize || tag.size() > kSha384Size)
+    {
+        return false;
+    }
+    const auto full = HmacSha384(key, data);
+    return Botan::constant_time_compare(ByteView(full).first(tag.size()), tag);
+}
+
+std::optional<Bytes>
+HkdfSha384(ByteView ikm, ByteView salt, ByteView info, std::size_t length)
+{
+    if (length > 255 * kSha384Size)
+    {
+        return std::nullopt;
+    }
+    auto kdf = Botan::KDF::create_or_throw("HKDF(SHA-384)");
+    return kdf->derive_key<Bytes>(length, ikm, salt, info);
 }
 
 } // namespace crypto

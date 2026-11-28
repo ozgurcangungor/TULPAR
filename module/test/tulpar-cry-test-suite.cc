@@ -9,10 +9,57 @@
 
 #include "ns3/test.h"
 
+#include <cstdint>
 #include <string>
+#include <string_view>
 
 using namespace ns3;
 using namespace ns3::tulpar;
+
+namespace
+{
+
+/**
+ * Decode hexadecimal digits.
+ *
+ * @param hex an even number of hexadecimal digits, in either case
+ * @return the bytes
+ */
+crypto::Bytes
+FromHex(std::string_view hex)
+{
+    auto nibble = [](char c) -> std::uint8_t {
+        if (c >= '0' && c <= '9')
+        {
+            return static_cast<std::uint8_t>(c - '0');
+        }
+        if (c >= 'a' && c <= 'f')
+        {
+            return static_cast<std::uint8_t>(c - 'a' + 10);
+        }
+        return static_cast<std::uint8_t>(c - 'A' + 10);
+    };
+    crypto::Bytes out;
+    for (std::size_t i = 0; i + 1 < hex.size(); i += 2)
+    {
+        out.push_back(static_cast<std::uint8_t>((nibble(hex[i]) << 4) | nibble(hex[i + 1])));
+    }
+    return out;
+}
+
+/**
+ * The bytes of an ASCII text.
+ *
+ * @param text the text
+ * @return its bytes, without a terminating zero
+ */
+crypto::Bytes
+FromText(std::string_view text)
+{
+    return crypto::Bytes(text.begin(), text.end());
+}
+
+} // namespace
 
 /**
  * @ingroup tulpar-tests
@@ -38,6 +85,100 @@ class TulparCryLinkedVersionTestCase : public TestCase
 
 /**
  * @ingroup tulpar-tests
+ * RSD-CRY-01d: SHA-384 against the FIPS 180-4 examples, HMAC-SHA-384 against RFC 4231 and
+ * HKDF-SHA-384 against Project Wycheproof.
+ */
+class TulparCryHashMacKdfTestCase : public TestCase
+{
+  public:
+    TulparCryHashMacKdfTestCase()
+        : TestCase("RSD-CRY-01d SHA-384, HMAC-SHA-384 and HKDF-SHA-384 match published vectors")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        NS_TEST_EXPECT_MSG_EQ(crypto::Sha384(FromText("abc")) ==
+                                  FromHex("cb00753f45a35e8bb5a03d699ac65007272c32ab0eded163"
+                                          "1a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7"),
+                              true,
+                              "SHA-384 of \"abc\" (FIPS 180-4 example)");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::Sha384(FromText("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmn"
+                                    "hijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu")) ==
+                FromHex("09330c33f71147e83d192fc782cd1b4753111b173b3b05d22fa08086e3b0f712"
+                        "fcc7c71a557e2db966c3e9fa91746039"),
+            true,
+            "SHA-384 of the two-block message (FIPS 180-4 example)");
+        NS_TEST_EXPECT_MSG_EQ(crypto::Sha384({}) ==
+                                  FromHex("38b060a751ac96384cd9327eb1b1e36a21fdb71114be0743"
+                                          "4c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                              true,
+                              "SHA-384 of the empty message");
+
+        NS_TEST_EXPECT_MSG_EQ(crypto::HmacSha384(crypto::Bytes(20, 0x0b), FromText("Hi There")) ==
+                                  FromHex("afd03944d84895626b0825f4ab46907f15f9dadbe4101ec6"
+                                          "82aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9cb6"),
+                              true,
+                              "HMAC-SHA-384, RFC 4231 test case 1");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::HmacSha384(FromText("Jefe"), FromText("what do ya want for nothing?")) ==
+                FromHex("af45d2e376484031617f78d2b58a6b1b9c7ef464f5a01b47e42ec3736322445e"
+                        "8e2240ca5e69e2c78b3239ecfab21649"),
+            true,
+            "HMAC-SHA-384, RFC 4231 test case 2");
+        const auto longKeyData = FromText("Test Using Larger Than Block-Size Key - Hash Key First");
+        NS_TEST_EXPECT_MSG_EQ(crypto::HmacSha384(crypto::Bytes(131, 0xaa), longKeyData) ==
+                                  FromHex("4ece084485813e9088d2c63a041bc5b44f9ef1012a2b588f"
+                                          "3cd11f05033ac4c60c2ef6ab4030fe8296248df163f44952"),
+                              true,
+                              "HMAC-SHA-384, RFC 4231 test case 6 (key longer than a block)");
+        // Expected value from Python's hmac module; Botan alone refuses keys over 8192 bytes.
+        NS_TEST_EXPECT_MSG_EQ(crypto::HmacSha384(crypto::Bytes(10000, 0xaa), longKeyData) ==
+                                  FromHex("afeb4a2b30470793f9b183ce248349b824b35139d1461bb5"
+                                          "3c18cffc4e3ea9b2a591ada0d3f1d6928b6adaf0f0f4b27d"),
+                              true,
+                              "HMAC-SHA-384 with a 10000-byte key");
+
+        const auto key5 = crypto::Bytes(20, 0x0c);
+        const auto data5 = FromText("Test With Truncation");
+        auto tag5 = FromHex("3abf34c3503b2a23a46efc619baef897");
+        NS_TEST_EXPECT_MSG_EQ(crypto::HmacSha384Verify(key5, data5, tag5),
+                              true,
+                              "16-byte tag of RFC 4231 test case 5 verifies");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::HmacSha384Verify(key5, data5, crypto::ByteView(tag5).first(7)),
+            false,
+            "a tag shorter than 8 bytes is rejected");
+        auto longTag = crypto::HmacSha384(key5, data5);
+        longTag.push_back(0);
+        NS_TEST_EXPECT_MSG_EQ(crypto::HmacSha384Verify(key5, data5, longTag),
+                              false,
+                              "a tag longer than 48 bytes is rejected");
+        tag5.back() ^= 0x01;
+        NS_TEST_EXPECT_MSG_EQ(crypto::HmacSha384Verify(key5, data5, tag5),
+                              false,
+                              "a modified tag is rejected");
+
+        const auto okm = crypto::HkdfSha384(FromHex(vectors::kWpHkdfIkm),
+                                            FromHex(vectors::kWpHkdfSalt),
+                                            FromHex(vectors::kWpHkdfInfo),
+                                            48);
+        NS_TEST_ASSERT_MSG_EQ(okm.has_value(), true, "HKDF-SHA-384 derives 48 bytes");
+        NS_TEST_EXPECT_MSG_EQ(*okm == FromHex(vectors::kWpHkdfOkm),
+                              true,
+                              "HKDF-SHA-384, Wycheproof tcId 70");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::HkdfSha384(FromHex(vectors::kWpHkdfIkm), {}, {}, 255 * crypto::kSha384Size + 1)
+                .has_value(),
+            false,
+            "HKDF-SHA-384 refuses more than 255 hash lengths");
+    }
+};
+
+/**
+ * @ingroup tulpar-tests
  * Crypto unit tests of M-CRY (RSD-CRY-01).
  */
 class TulparCryTestSuite : public TestSuite
@@ -47,6 +188,7 @@ class TulparCryTestSuite : public TestSuite
         : TestSuite("tulpar-cry", Type::UNIT)
     {
         AddTestCase(new TulparCryLinkedVersionTestCase, Duration::QUICK);
+        AddTestCase(new TulparCryHashMacKdfTestCase, Duration::QUICK);
     }
 };
 

@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -52,6 +53,46 @@ constexpr std::size_t kMlDsaSignatureSize = 4627;        ///< ML-DSA-87 signatur
  * @return the version as "major.minor.patch", read from the linked library at run time
  */
 std::string LinkedBotanVersion();
+
+/**
+ * SHA-384 digest (RSD-CRY-01d).
+ *
+ * @param data the message
+ * @return the 48-byte digest
+ */
+Bytes Sha384(ByteView data);
+
+/**
+ * HMAC-SHA-384 tag (RFC 2104; RSD-CRY-01d).
+ *
+ * @param key the key, of any length
+ * @param data the message
+ * @return the 48-byte tag
+ */
+Bytes HmacSha384(ByteView key, ByteView data);
+
+/**
+ * Check a full or truncated HMAC-SHA-384 tag in constant time (RSD-CRY-01d). HELLO carries
+ * 16 bytes of the tag (Table 4.26) and each per-receiver telemetry MAC 8 bytes (Table 4.29).
+ *
+ * @param key the key
+ * @param data the message
+ * @param tag the received tag, 8 to 48 bytes
+ * @return true if the tag equals the first tag.size() bytes of the HMAC; false otherwise,
+ *         including for a tag of another length
+ */
+bool HmacSha384Verify(ByteView key, ByteView data, ByteView tag);
+
+/**
+ * HKDF-SHA-384 key derivation (RFC 5869; RSD-CRY-01d).
+ *
+ * @param ikm input key material
+ * @param salt salt, may be empty
+ * @param info context label, may be empty
+ * @param length number of bytes to derive, at most 255 * 48
+ * @return the derived bytes, or nothing if the length is too large
+ */
+std::optional<Bytes> HkdfSha384(ByteView ikm, ByteView salt, ByteView info, std::size_t length);
 
 } // namespace crypto
 } // namespace tulpar
