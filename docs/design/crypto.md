@@ -101,7 +101,7 @@ A new header `module/agent/cry/tulpar-crypto.h` in namespace `ns3::tulpar::crypt
 | `Aes256GcmOpen(key, iv, aad, sealed)` | plaintext, or nothing if the tag fails | |
 | `MlDsa87KeyPair::FromSeed(xi)`, `.PublicKey()`, `.Sign(message)` | key pair from the 32-byte seed ξ of FIPS 204; public key; deterministic signature | 2592 B; 4627 B |
 | `MlDsa87Verify(publicKey, message, signature)` | true or false | |
-| `MlKem1024KeyPair::FromSeed(dz)`, `.EncapsulationKey()`, `.Decapsulate(ciphertext)` | key pair from the 64-byte seed d ‖ z of FIPS 203; encapsulation key; shared secret, or nothing | 1568 B; 32 B |
+| `MlKem1024KeyPair::FromSeed(dz)`, `.EncapsulationKey()`, `.Decapsulate(ciphertext)` | key pair from the 64-byte seed d ‖ z of FIPS 203; encapsulation key; shared secret (for a modified ciphertext, the implicit-rejection secret of FIPS 203), or nothing for a ciphertext of the wrong size | 1568 B; 32 B |
 | `MlKem1024Encapsulate(encapsulationKey, m)` | ciphertext and shared secret from the 32-byte randomness m | 1568 B; 32 B |
 | `DeterministicRandom(seed)`, `.Draw(n)` | seeded generator (Section 5.4); `n` bytes | seed 48 B |
 | `MakeIv(use, direction, rosterPosition, value)`, `FrameCounter` | IV and frame counters (Section 5.6) | 12 B; 8 B |
@@ -181,7 +181,7 @@ Every IV is 12 bytes, a 4-byte fixed field followed by an 8-byte value, as in V1
 
 ### 5.8 Failure handling
 
-Functions that take data from the network never abort the simulation. A wrong-size key, signature or ciphertext, a failed tag or a failed decapsulation returns false or nothing; M-CRY catches Botan exceptions and turns them into that result. The crypto core returns configuration errors, such as a malformed delay table or a seed of the wrong size, as errors, and the agent module or the harness stops the run at start-up with `NS_FATAL_ERROR`.
+Functions that take data from the network never abort the simulation. A wrong-size key, signature or ciphertext, or a failed tag, returns false or nothing; M-CRY catches Botan exceptions and turns them into that result. Decapsulating a modified ML-KEM-1024 ciphertext returns the implicit-rejection secret, as FIPS 203 requires, so the failure shows when the tag under the derived key fails. The crypto core returns configuration errors, such as a malformed delay table or a seed of the wrong size, as errors, and the agent module or the harness stops the run at start-up with `NS_FATAL_ERROR`.
 
 ## 6. Verification
 
@@ -190,7 +190,7 @@ The checks live in the ns-3 test suite `tulpar-cry` (`module/test/tulpar-cry-tes
 - HMAC-SHA-384: RFC 4231;
 - HKDF-SHA-384: Project Wycheproof (`hkdf_sha384_test.json`);
 - AES-256-GCM: the AES-256 test cases of the GCM specification, or NIST CAVP;
-- ML-KEM-1024: NIST ACVP key-generation and encapsulation vectors;
+- ML-KEM-1024: NIST ACVP key-generation and encapsulation vectors, and Project Wycheproof's ML-KEM-1024 decapsulation vectors, which give the key pair as a seed and include implicit rejection;
 - ML-DSA-87: NIST ACVP key-generation vectors, and Project Wycheproof's ML-DSA-87 vectors for deterministic signing with an empty context and for verification.
 
 An issue closes only when its whole acceptance criterion passes in CI (`CLAUDE.md`). Where this work covers part of a criterion, the issue stays open until the later check exists.
