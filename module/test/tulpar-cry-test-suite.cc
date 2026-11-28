@@ -179,6 +179,84 @@ class TulparCryHashMacKdfTestCase : public TestCase
 
 /**
  * @ingroup tulpar-tests
+ * RSD-CRY-01c: AES-256-GCM against Test Case 16 of the GCM specification (McGrew and Viega), and
+ * rejection of every modified input.
+ */
+class TulparCryAesGcmTestCase : public TestCase
+{
+  public:
+    TulparCryAesGcmTestCase()
+        : TestCase("RSD-CRY-01c AES-256-GCM rejects a modified ciphertext or associated datum")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        const auto key =
+            FromHex("feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308");
+        const auto iv = FromHex("cafebabefacedbaddecaf888");
+        const auto aad = FromHex("feedfacedeadbeeffeedfacedeadbeefabaddad2");
+        const auto plaintext =
+            FromHex("d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72"
+                    "1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39");
+        const auto ciphertextAndTag =
+            FromHex("522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa"
+                    "8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662"
+                    "76fc6ece0f4e1768cddf8853bb2d551b");
+
+        const auto sealed = crypto::Aes256GcmSeal(key, iv, aad, plaintext);
+        NS_TEST_ASSERT_MSG_EQ(sealed.has_value(), true, "sealing Test Case 16");
+        NS_TEST_EXPECT_MSG_EQ(*sealed == ciphertextAndTag,
+                              true,
+                              "ciphertext and tag of Test Case 16");
+        const auto opened = crypto::Aes256GcmOpen(key, iv, aad, *sealed);
+        NS_TEST_ASSERT_MSG_EQ(opened.has_value(), true, "opening Test Case 16");
+        NS_TEST_EXPECT_MSG_EQ(*opened == plaintext, true, "plaintext of Test Case 16");
+
+        auto badCiphertext = *sealed;
+        badCiphertext.front() ^= 0x01;
+        NS_TEST_EXPECT_MSG_EQ(crypto::Aes256GcmOpen(key, iv, aad, badCiphertext).has_value(),
+                              false,
+                              "a modified ciphertext fails");
+        auto badAad = aad;
+        badAad.back() ^= 0x01;
+        NS_TEST_EXPECT_MSG_EQ(crypto::Aes256GcmOpen(key, iv, badAad, *sealed).has_value(),
+                              false,
+                              "a modified associated datum fails");
+        auto badTag = *sealed;
+        badTag.back() ^= 0x01;
+        NS_TEST_EXPECT_MSG_EQ(crypto::Aes256GcmOpen(key, iv, aad, badTag).has_value(),
+                              false,
+                              "a modified tag fails");
+
+        const auto shortKey = crypto::ByteView(key).first(31);
+        NS_TEST_EXPECT_MSG_EQ(crypto::Aes256GcmSeal(shortKey, iv, aad, plaintext).has_value(),
+                              false,
+                              "a 31-byte key is refused for sealing");
+        NS_TEST_EXPECT_MSG_EQ(crypto::Aes256GcmOpen(shortKey, iv, aad, *sealed).has_value(),
+                              false,
+                              "a 31-byte key is refused for opening");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::Aes256GcmSeal(key, crypto::Bytes(16, 0), aad, plaintext).has_value(),
+            false,
+            "a 16-byte IV is refused");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::Aes256GcmOpen(key, iv, aad, crypto::ByteView(*sealed).first(15)).has_value(),
+            false,
+            "input shorter than a tag is refused");
+
+        const auto tagOnly = crypto::Aes256GcmSeal(key, iv, {}, {});
+        NS_TEST_ASSERT_MSG_EQ(tagOnly.has_value(), true, "sealing the empty message");
+        NS_TEST_EXPECT_MSG_EQ(tagOnly->size(), crypto::kAesGcmTagSize, "empty message gives a tag");
+        const auto empty = crypto::Aes256GcmOpen(key, iv, {}, *tagOnly);
+        NS_TEST_ASSERT_MSG_EQ(empty.has_value(), true, "opening the empty message");
+        NS_TEST_EXPECT_MSG_EQ(empty->empty(), true, "the empty message opens to empty");
+    }
+};
+
+/**
+ * @ingroup tulpar-tests
  * Crypto unit tests of M-CRY (RSD-CRY-01).
  */
 class TulparCryTestSuite : public TestSuite
@@ -189,6 +267,7 @@ class TulparCryTestSuite : public TestSuite
     {
         AddTestCase(new TulparCryLinkedVersionTestCase, Duration::QUICK);
         AddTestCase(new TulparCryHashMacKdfTestCase, Duration::QUICK);
+        AddTestCase(new TulparCryAesGcmTestCase, Duration::QUICK);
     }
 };
 

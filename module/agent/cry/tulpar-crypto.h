@@ -94,6 +94,30 @@ bool HmacSha384Verify(ByteView key, ByteView data, ByteView tag);
  */
 std::optional<Bytes> HkdfSha384(ByteView ikm, ByteView salt, ByteView info, std::size_t length);
 
+/**
+ * Encrypt and authenticate with AES-256-GCM (RSD-CRY-01c). The caller builds the IV by the IV
+ * rule of RSD-CRY-01g; this function checks only its length.
+ *
+ * @param key the 32-byte key
+ * @param iv the 12-byte IV
+ * @param aad associated data, authenticated but not encrypted
+ * @param plaintext the message
+ * @return the ciphertext followed by the 16-byte tag, or nothing for a key or IV of another
+ *         length
+ */
+std::optional<Bytes> Aes256GcmSeal(ByteView key, ByteView iv, ByteView aad, ByteView plaintext);
+
+/**
+ * Check and decrypt AES-256-GCM output (RSD-CRY-01c).
+ *
+ * @param key the 32-byte key
+ * @param iv the 12-byte IV
+ * @param aad associated data
+ * @param sealed the ciphertext followed by the 16-byte tag
+ * @return the plaintext, or nothing if the tag fails or a length is wrong
+ */
+std::optional<Bytes> Aes256GcmOpen(ByteView key, ByteView iv, ByteView aad, ByteView sealed);
+
 } // namespace crypto
 } // namespace tulpar
 } // namespace ns3
