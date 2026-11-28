@@ -259,6 +259,84 @@ struct MlKem1024Encapsulation
  */
 std::optional<MlKem1024Encapsulation> MlKem1024Encapsulate(ByteView encapsulationKey, ByteView m);
 
+/**
+ * ML-DSA-87 key pair (FIPS 204; RSD-CRY-01b). It signs deterministically with the empty context
+ * (RSD-CRY-01f), is built from its seed, and no function returns its private key
+ * (RSD-CRY-02a). Move-only.
+ */
+class MlDsa87KeyPair
+{
+  public:
+    /**
+     * Build the key pair of a seed (ML-DSA.KeyGen_internal of FIPS 204).
+     *
+     * @param xi the 32-byte seed
+     * @return the key pair, or nothing for a seed of another length
+     */
+    static std::optional<MlDsa87KeyPair> FromSeed(ByteView xi);
+
+    /// Destructor.
+    ~MlDsa87KeyPair();
+
+    /**
+     * Move constructor.
+     *
+     * @param other the key pair to take over
+     */
+    MlDsa87KeyPair(MlDsa87KeyPair&& other) noexcept;
+
+    /**
+     * Move assignment.
+     *
+     * @param other the key pair to take over
+     * @return this key pair
+     */
+    MlDsa87KeyPair& operator=(MlDsa87KeyPair&& other) noexcept;
+
+    MlDsa87KeyPair(const MlDsa87KeyPair&) = delete;
+    MlDsa87KeyPair& operator=(const MlDsa87KeyPair&) = delete;
+
+    /**
+     * The public half of the key pair.
+     *
+     * @return the 2592-byte public key
+     */
+    Bytes PublicKey() const;
+
+    /**
+     * Sign a message deterministically with the empty context (RSD-CRY-01f). The simulation
+     * signs deterministically so that runs are reproducible; a real vehicle would use hedged
+     * signing (RSD Section 4.5).
+     *
+     * @param message the message
+     * @return the 4627-byte signature
+     */
+    Bytes Sign(ByteView message) const;
+
+  private:
+    struct Impl;
+
+    /**
+     * Constructor.
+     *
+     * @param impl the Botan key
+     */
+    explicit MlDsa87KeyPair(std::unique_ptr<Impl> impl);
+
+    std::unique_ptr<Impl> m_impl; ///< Botan key, kept out of this header
+};
+
+/**
+ * Verify an ML-DSA-87 signature made with the empty context (RSD-CRY-01b).
+ *
+ * @param publicKey the 2592-byte public key
+ * @param message the message
+ * @param signature the 4627-byte signature
+ * @return true if the signature is valid; false otherwise, including for an input of the wrong
+ *         length
+ */
+bool MlDsa87Verify(ByteView publicKey, ByteView message, ByteView signature);
+
 } // namespace crypto
 } // namespace tulpar
 } // namespace ns3

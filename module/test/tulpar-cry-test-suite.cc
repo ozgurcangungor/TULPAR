@@ -405,6 +405,131 @@ class TulparCryMlKemTestCase : public TestCase
 
 /**
  * @ingroup tulpar-tests
+ * RSD-CRY-01b: ML-DSA-87 key generation against NIST ACVP, verification against Project
+ * Wycheproof, and a real verification failure under a wrong key.
+ */
+class TulparCryMlDsaVerifyTestCase : public TestCase
+{
+  public:
+    TulparCryMlDsaVerifyTestCase()
+        : TestCase("RSD-CRY-01b ML-DSA-87 signature verifies and fails under a wrong key")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        const auto acvpPair =
+            crypto::MlDsa87KeyPair::FromSeed(FromHex(vectors::kAcvpMlDsaKeyGenSeed));
+        NS_TEST_ASSERT_MSG_EQ(acvpPair.has_value(), true, "key pair from ACVP keyGen tcId 51");
+        NS_TEST_EXPECT_MSG_EQ(acvpPair->PublicKey() == FromHex(vectors::kAcvpMlDsaKeyGenPk),
+                              true,
+                              "public key of ACVP keyGen tcId 51");
+
+        const auto publicKey = FromHex(vectors::kWpMlDsaPk);
+        const auto message = FromHex(vectors::kWpMlDsaMsg);
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::MlDsa87Verify(publicKey, message, FromHex(vectors::kWpMlDsaSig)),
+            true,
+            "Wycheproof verify tcId 1");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::MlDsa87Verify(publicKey, message, FromHex(vectors::kWpMlDsaShortSig)),
+            false,
+            "Wycheproof verify tcId 6, short signature");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::MlDsa87Verify(publicKey, message, FromHex(vectors::kWpMlDsaFlippedSig)),
+            false,
+            "Wycheproof verify tcId 8, bit flip in c_tilde");
+        NS_TEST_EXPECT_MSG_EQ(crypto::MlDsa87Verify(crypto::ByteView(publicKey).first(2591),
+                                                    message,
+                                                    FromHex(vectors::kWpMlDsaSig)),
+                              false,
+                              "a 2591-byte public key is refused");
+
+        const auto pair = crypto::MlDsa87KeyPair::FromSeed(FromHex(vectors::kWpMlDsaSeed));
+        NS_TEST_ASSERT_MSG_EQ(pair.has_value(), true, "key pair of the Wycheproof seed");
+        const auto text = FromText("TULPAR");
+        const auto signature = pair->Sign(text);
+        NS_TEST_EXPECT_MSG_EQ(crypto::MlDsa87Verify(pair->PublicKey(), text, signature),
+                              true,
+                              "a signature verifies under its own key");
+        NS_TEST_EXPECT_MSG_EQ(crypto::MlDsa87Verify(acvpPair->PublicKey(), text, signature),
+                              false,
+                              "a wrong key produces a real verification failure");
+        NS_TEST_EXPECT_MSG_EQ(crypto::MlDsa87Verify(pair->PublicKey(), {}, pair->Sign({})),
+                              true,
+                              "the empty message signs and verifies");
+        NS_TEST_EXPECT_MSG_EQ(crypto::MlDsa87KeyPair::FromSeed(crypto::Bytes(31, 0x2a)).has_value(),
+                              false,
+                              "a 31-byte seed is refused");
+    }
+};
+
+/**
+ * @ingroup tulpar-tests
+ * RSD-CRY-01f: deterministic ML-DSA-87 signing reproduces the Project Wycheproof signature made
+ * with the all-zero randomizer, and two signatures of one message are byte-identical.
+ */
+class TulparCryMlDsaDeterministicTestCase : public TestCase
+{
+  public:
+    TulparCryMlDsaDeterministicTestCase()
+        : TestCase("RSD-CRY-01f deterministic ML-DSA-87 signatures are byte-identical")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        const auto pair = crypto::MlDsa87KeyPair::FromSeed(FromHex(vectors::kWpMlDsaSeed));
+        NS_TEST_ASSERT_MSG_EQ(pair.has_value(), true, "key pair of the Wycheproof seed");
+        NS_TEST_EXPECT_MSG_EQ(pair->PublicKey() == FromHex(vectors::kWpMlDsaPk),
+                              true,
+                              "public key of Wycheproof sign testGroups[0]");
+        const auto message = FromHex(vectors::kWpMlDsaMsg);
+        const auto first = pair->Sign(message);
+        NS_TEST_EXPECT_MSG_EQ(first == FromHex(vectors::kWpMlDsaSig),
+                              true,
+                              "deterministic signature of Wycheproof sign tcId 1");
+        NS_TEST_EXPECT_MSG_EQ(pair->Sign(message) == first,
+                              true,
+                              "a second signature of the message is byte-identical");
+    }
+};
+
+/**
+ * @ingroup tulpar-tests
+ * RSD-CRY-01e: signatures, keys, ciphertexts and secrets have the real sizes of RSD Table 2.1.
+ */
+class TulparCrySizesTestCase : public TestCase
+{
+  public:
+    TulparCrySizesTestCase()
+        : TestCase("RSD-CRY-01e signatures and ciphertexts have their real sizes")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        const auto signer = crypto::MlDsa87KeyPair::FromSeed(FromHex(vectors::kWpMlDsaSeed));
+        NS_TEST_ASSERT_MSG_EQ(signer.has_value(), true, "ML-DSA-87 key pair");
+        NS_TEST_EXPECT_MSG_EQ(signer->Sign(FromText("TULPAR")).size(), 4627U, "signature");
+        NS_TEST_EXPECT_MSG_EQ(signer->PublicKey().size(), 2592U, "ML-DSA-87 public key");
+
+        const auto kem = crypto::MlKem1024KeyPair::FromSeed(FromHex(vectors::kWpMlKemValidSeed));
+        NS_TEST_ASSERT_MSG_EQ(kem.has_value(), true, "ML-KEM-1024 key pair");
+        NS_TEST_EXPECT_MSG_EQ(kem->EncapsulationKey().size(), 1568U, "encapsulation key");
+        const auto encapsulated =
+            crypto::MlKem1024Encapsulate(kem->EncapsulationKey(), crypto::Bytes(32, 0x07));
+        NS_TEST_ASSERT_MSG_EQ(encapsulated.has_value(), true, "ML-KEM-1024 encapsulation");
+        NS_TEST_EXPECT_MSG_EQ(encapsulated->ciphertext.size(), 1568U, "ciphertext");
+        NS_TEST_EXPECT_MSG_EQ(encapsulated->sharedSecret.size(), 32U, "shared secret");
+    }
+};
+
+/**
+ * @ingroup tulpar-tests
  * Crypto unit tests of M-CRY (RSD-CRY-01).
  */
 class TulparCryTestSuite : public TestSuite
@@ -418,6 +543,9 @@ class TulparCryTestSuite : public TestSuite
         AddTestCase(new TulparCryAesGcmTestCase, Duration::QUICK);
         AddTestCase(new TulparCryDeterministicRandomTestCase, Duration::QUICK);
         AddTestCase(new TulparCryMlKemTestCase, Duration::QUICK);
+        AddTestCase(new TulparCryMlDsaVerifyTestCase, Duration::QUICK);
+        AddTestCase(new TulparCryMlDsaDeterministicTestCase, Duration::QUICK);
+        AddTestCase(new TulparCrySizesTestCase, Duration::QUICK);
     }
 };
 

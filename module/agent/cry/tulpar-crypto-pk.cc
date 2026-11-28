@@ -95,6 +95,17 @@ MlKem1024Mode()
     return Botan::ML_KEM_Mode(Botan::ML_KEM_Mode::ML_KEM_1024);
 }
 
+/**
+ * The ML-DSA parameter set of the suite.
+ *
+ * @return ML-DSA-87, which Botan names 8x7 after its matrix dimensions
+ */
+Botan::ML_DSA_Mode
+MlDsa87Mode()
+{
+    return Botan::ML_DSA_Mode(Botan::ML_DSA_Mode::ML_DSA_8x7);
+}
+
 } // namespace
 
 /// Botan key behind an MlKem1024KeyPair.
@@ -191,6 +202,83 @@ MlKem1024Encapsulate(ByteView encapsulationKey, ByteView m)
     catch (const std::exception&)
     {
         return std::nullopt;
+    }
+}
+
+/// Botan key behind an MlDsa87KeyPair.
+struct MlDsa87KeyPair::Impl
+{
+    std::unique_ptr<Botan::ML_DSA_PrivateKey> key; ///< private key with its public half
+};
+
+MlDsa87KeyPair::MlDsa87KeyPair(std::unique_ptr<Impl> impl)
+    : m_impl(std::move(impl))
+{
+}
+
+MlDsa87KeyPair::~MlDsa87KeyPair() = default;
+
+MlDsa87KeyPair::MlDsa87KeyPair(MlDsa87KeyPair&& other) noexcept = default;
+
+MlDsa87KeyPair& MlDsa87KeyPair::operator=(MlDsa87KeyPair&& other) noexcept = default;
+
+std::optional<MlDsa87KeyPair>
+MlDsa87KeyPair::FromSeed(ByteView xi)
+{
+    if (xi.size() != kMlDsaSeedSize)
+    {
+        return std::nullopt;
+    }
+    try
+    {
+        // Botan draws exactly the 32-byte seed xi.
+        FixedBytesRng rng(xi);
+        auto impl = std::make_unique<Impl>();
+        impl->key = std::make_unique<Botan::ML_DSA_PrivateKey>(rng, MlDsa87Mode());
+        if (!rng.Consumed())
+        {
+            return std::nullopt;
+        }
+        return MlDsa87KeyPair(std::move(impl));
+    }
+    catch (const std::exception&)
+    {
+        return std::nullopt;
+    }
+}
+
+Bytes
+MlDsa87KeyPair::PublicKey() const
+{
+    return m_impl->key->public_key_bits();
+}
+
+Bytes
+MlDsa87KeyPair::Sign(ByteView message) const
+{
+    // "Deterministic" selects the all-zero randomizer of FIPS 204; Null_RNG throws if anything
+    // draws from it, so the signer cannot use randomness unnoticed.
+    Botan::Null_RNG noRandomness;
+    Botan::PK_Signer signer(*m_impl->key, noRandomness, "Deterministic");
+    return signer.sign_message(message, noRandomness);
+}
+
+bool
+MlDsa87Verify(ByteView publicKey, ByteView message, ByteView signature)
+{
+    if (publicKey.size() != kMlDsaPublicKeySize || signature.size() != kMlDsaSignatureSize)
+    {
+        return false;
+    }
+    try
+    {
+        const Botan::ML_DSA_PublicKey key(publicKey, MlDsa87Mode());
+        Botan::PK_Verifier verifier(key, "");
+        return verifier.verify_message(message, signature);
+    }
+    catch (const std::exception&)
+    {
+        return false;
     }
 }
 
