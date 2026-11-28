@@ -40,6 +40,7 @@ target_compile_options(tulpar_botan PRIVATE -O3 -g0 -w)
 # M-CRY crypto core: no ns-3 dependency or registration, so the test library may link it too.
 tulpar_static_target(tulpar_crypto
   SOURCES ${TULPAR_DIR}/agent/cry/tulpar-crypto-symmetric.cc
+          ${TULPAR_DIR}/agent/cry/tulpar-crypto-random.cc
   INCLUDE ${TULPAR_DIR}/agent/cry
 )
 target_link_libraries(tulpar_crypto PRIVATE tulpar_botan)

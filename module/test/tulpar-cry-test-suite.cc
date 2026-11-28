@@ -257,6 +257,58 @@ class TulparCryAesGcmTestCase : public TestCase
 
 /**
  * @ingroup tulpar-tests
+ * The seeded generator of docs/design/crypto.md, Section 5.4: HMAC_DRBG over HMAC-SHA-384 whose
+ * output depends only on its seed. Supporting test, no acceptance criterion of its own.
+ */
+class TulparCryDeterministicRandomTestCase : public TestCase
+{
+  public:
+    TulparCryDeterministicRandomTestCase()
+        : TestCase("DeterministicRandom gives the same bytes for the same seed")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        auto first = crypto::DeterministicRandom::FromSeed(crypto::Bytes(48, 0x11));
+        auto second = crypto::DeterministicRandom::FromSeed(crypto::Bytes(48, 0x11));
+        NS_TEST_ASSERT_MSG_EQ((first.has_value() && second.has_value()), true, "48-byte seeds");
+
+        NS_TEST_EXPECT_MSG_EQ(first->Draw(0).empty(), true, "a draw of 0 bytes is empty");
+        const auto drawn = first->Draw(64);
+        // Expected value from an independent Python implementation of NIST SP 800-90A
+        // HMAC_DRBG with SHA-384, instantiated with the seed as its seed material.
+        NS_TEST_EXPECT_MSG_EQ(drawn == FromHex("2cbe9a2cf7ccd6a75037198f2f9e8d567c1833fa20cca4c2"
+                                               "4f5e901cafd7414b7afd97b7423056c156ed2ed9febd0393"
+                                               "b1b2008cd63b4fa5437355e9979fe15b"),
+                              true,
+                              "first 64 bytes are those of HMAC_DRBG with SHA-384");
+        NS_TEST_EXPECT_MSG_EQ(
+            second->Draw(64) == drawn,
+            true,
+            "the same seed gives the same bytes, and a draw of 0 changes nothing");
+        const auto large = first->Draw(200000);
+        NS_TEST_EXPECT_MSG_EQ(large.size(), 200000U, "a draw above the per-request limit");
+        NS_TEST_EXPECT_MSG_EQ(second->Draw(200000) == large, true, "large draws agree");
+
+        auto other = crypto::DeterministicRandom::FromSeed(crypto::Bytes(48, 0x12));
+        NS_TEST_ASSERT_MSG_EQ(other.has_value(), true, "another 48-byte seed");
+        NS_TEST_EXPECT_MSG_EQ(other->Draw(64) == drawn, false, "another seed gives other bytes");
+
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::DeterministicRandom::FromSeed(crypto::Bytes(47, 0x11)).has_value(),
+            false,
+            "a 47-byte seed is refused");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::DeterministicRandom::FromSeed(crypto::Bytes(49, 0x11)).has_value(),
+            false,
+            "a 49-byte seed is refused");
+    }
+};
+
+/**
+ * @ingroup tulpar-tests
  * Crypto unit tests of M-CRY (RSD-CRY-01).
  */
 class TulparCryTestSuite : public TestSuite
@@ -268,6 +320,7 @@ class TulparCryTestSuite : public TestSuite
         AddTestCase(new TulparCryLinkedVersionTestCase, Duration::QUICK);
         AddTestCase(new TulparCryHashMacKdfTestCase, Duration::QUICK);
         AddTestCase(new TulparCryAesGcmTestCase, Duration::QUICK);
+        AddTestCase(new TulparCryDeterministicRandomTestCase, Duration::QUICK);
     }
 };
 

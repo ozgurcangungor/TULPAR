@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -117,6 +118,64 @@ std::optional<Bytes> Aes256GcmSeal(ByteView key, ByteView iv, ByteView aad, Byte
  * @return the plaintext, or nothing if the tag fails or a length is wrong
  */
 std::optional<Bytes> Aes256GcmOpen(ByteView key, ByteView iv, ByteView aad, ByteView sealed);
+
+/**
+ * The seeded generator behind every random input of M-CRY (docs/design/crypto.md, Section 5.4):
+ * Botan's HMAC_DRBG over HMAC-SHA-384, built without an underlying generator, so it never
+ * reseeds from the operating system and its output depends only on its seed. Move-only.
+ */
+class DeterministicRandom
+{
+  public:
+    /**
+     * Create a generator.
+     *
+     * @param seed the 48-byte seed
+     * @return the generator, or nothing for a seed of another length
+     */
+    static std::optional<DeterministicRandom> FromSeed(ByteView seed);
+
+    /// Destructor.
+    ~DeterministicRandom();
+
+    /**
+     * Move constructor.
+     *
+     * @param other the generator to take over
+     */
+    DeterministicRandom(DeterministicRandom&& other) noexcept;
+
+    /**
+     * Move assignment.
+     *
+     * @param other the generator to take over
+     * @return this generator
+     */
+    DeterministicRandom& operator=(DeterministicRandom&& other) noexcept;
+
+    DeterministicRandom(const DeterministicRandom&) = delete;
+    DeterministicRandom& operator=(const DeterministicRandom&) = delete;
+
+    /**
+     * Draw the next bytes of the generator's output.
+     *
+     * @param n number of bytes; 0 returns nothing and leaves the generator unchanged
+     * @return n bytes
+     */
+    Bytes Draw(std::size_t n);
+
+  private:
+    struct Impl;
+
+    /**
+     * Constructor.
+     *
+     * @param impl the seeded Botan generator
+     */
+    explicit DeterministicRandom(std::unique_ptr<Impl> impl);
+
+    std::unique_ptr<Impl> m_impl; ///< Botan generator, kept out of this header
+};
 
 } // namespace crypto
 } // namespace tulpar
