@@ -42,7 +42,7 @@ Every folder has one owner, following the Jira assignments. Work only on issues 
 | `module/agent/mis/` | Berra Senem Mıynat |
 | `module/agent/lsc/`, `module/sim/`, `module/examples/` | Çağlar Mesci |
 | `module/common/`, `module/agent/root/`, `module/CMakeLists.txt`, `.clang-format`, `docker/`, `.github/`, `tools/`, `scripts/`, `module/test/tulpar-g0-test-suite.cc` | Çağlar Mesci (shared) |
-| `module/test/tulpar-<module>-test-suite.cc` | Owner of the module |
+| `module/test/tulpar-<module>-test-suite.cc`, `module/test/tulpar-<module>-test-vectors.*` | Owner of the module |
 | `docs/rsd/`, `docs/backlog/`, `docs/g0/`, `CLAUDE.md`, `README.md`, `third_party/` | Özgür Can Güngör |
 | `docs/design/` | Özgür Can Güngör (shared); the owners of TULPAR-480 to TULPAR-484 add their message formats |
 | `.github/CODEOWNERS`, `.github/workflows/pr-title.yml`, `tools/deps_rules.json` | Özgür Can Güngör |

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include "tulpar-cry-test-vectors.h"
 #include "tulpar-crypto.h"
 
 #include "ns3/test.h"

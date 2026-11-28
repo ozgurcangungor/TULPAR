@@ -30,6 +30,7 @@
 /module/test/tulpar-com-test-suite.cc   @cemrekarabulut
 /module/test/tulpar-del-test-suite.cc   @cemrekarabulut
 /module/test/tulpar-cry-test-suite.cc   @ozgurcangungor
+/module/test/tulpar-cry-test-vectors.*  @ozgurcangungor
 /module/test/tulpar-evs-test-suite.cc   @ozgurcangungor
 /module/test/tulpar-obs-test-suite.cc   @BerkanMursal
 /module/test/tulpar-sec-test-suite.cc   @BerkanMursal
