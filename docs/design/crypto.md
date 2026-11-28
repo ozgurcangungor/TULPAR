@@ -197,7 +197,7 @@ An issue closes only when its whole acceptance criterion passes in CI (`CLAUDE.m
 
 | Requirement | Check | Method | Closes the issue |
 |---|---|---|---|
-| RSD-CRY-01a | `RSD-CRY-01a ML-KEM-1024 key generation, encapsulation and decapsulation match ACVP vectors` | T | Partly. The handshake test and the suite-identifier check come with the session work and the formats; bundle encapsulation comes with RSD-NET-05e. |
+| RSD-CRY-01a | `RSD-CRY-01a ML-KEM-1024 key generation, encapsulation and decapsulation match published vectors` | T | Partly. The handshake test and the suite-identifier check come with the session work and the formats; bundle encapsulation comes with RSD-NET-05e. |
 | RSD-CRY-01b | `RSD-CRY-01b ML-DSA-87 signature verifies and fails under a wrong key`, with the ACVP and Wycheproof vectors | T | Partly. "every signed record type" is tested as the record types are implemented. |
 | RSD-CRY-01c | `RSD-CRY-01c AES-256-GCM rejects a modified ciphertext or associated datum`, with the GCM vectors | T | Yes |
 | RSD-CRY-01d | `RSD-CRY-01d SHA-384, HMAC-SHA-384 and HKDF-SHA-384 match published vectors` | T | Yes |
