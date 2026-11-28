@@ -309,6 +309,102 @@ class TulparCryDeterministicRandomTestCase : public TestCase
 
 /**
  * @ingroup tulpar-tests
+ * RSD-CRY-01a: ML-KEM-1024 key generation and encapsulation against NIST ACVP, decapsulation
+ * (including implicit rejection) against Project Wycheproof, and refusal of malformed inputs.
+ */
+class TulparCryMlKemTestCase : public TestCase
+{
+  public:
+    TulparCryMlKemTestCase()
+        : TestCase("RSD-CRY-01a ML-KEM-1024 key generation, encapsulation and decapsulation match "
+                   "published vectors")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        auto dz = FromHex(vectors::kAcvpMlKemKeyGenD);
+        const auto z = FromHex(vectors::kAcvpMlKemKeyGenZ);
+        dz.insert(dz.end(), z.begin(), z.end());
+        const auto acvpPair = crypto::MlKem1024KeyPair::FromSeed(dz);
+        NS_TEST_ASSERT_MSG_EQ(acvpPair.has_value(), true, "key pair from ACVP keyGen tcId 51");
+        NS_TEST_EXPECT_MSG_EQ(acvpPair->EncapsulationKey() == FromHex(vectors::kAcvpMlKemKeyGenEk),
+                              true,
+                              "encapsulation key of ACVP keyGen tcId 51");
+
+        const auto encapsulated = crypto::MlKem1024Encapsulate(FromHex(vectors::kAcvpMlKemEncapEk),
+                                                               FromHex(vectors::kAcvpMlKemEncapM));
+        NS_TEST_ASSERT_MSG_EQ(encapsulated.has_value(), true, "ACVP encapDecap tcId 51");
+        NS_TEST_EXPECT_MSG_EQ(encapsulated->ciphertext == FromHex(vectors::kAcvpMlKemEncapC),
+                              true,
+                              "ciphertext of ACVP encapDecap tcId 51");
+        NS_TEST_EXPECT_MSG_EQ(encapsulated->sharedSecret == FromHex(vectors::kAcvpMlKemEncapK),
+                              true,
+                              "shared secret of ACVP encapDecap tcId 51");
+
+        struct Decapsulation
+        {
+            std::string_view seed;
+            std::string_view ek;
+            std::string_view c;
+            std::string_view k;
+            const char* what;
+        };
+
+        for (const auto& v : {Decapsulation{vectors::kWpMlKemValidSeed,
+                                            vectors::kWpMlKemValidEk,
+                                            vectors::kWpMlKemValidC,
+                                            vectors::kWpMlKemValidK,
+                                            "Wycheproof tcId 2"},
+                              Decapsulation{vectors::kWpMlKemRejectSeed,
+                                            vectors::kWpMlKemRejectEk,
+                                            vectors::kWpMlKemRejectC,
+                                            vectors::kWpMlKemRejectK,
+                                            "Wycheproof tcId 194, implicit rejection"}})
+        {
+            const auto pair = crypto::MlKem1024KeyPair::FromSeed(FromHex(v.seed));
+            NS_TEST_ASSERT_MSG_EQ(pair.has_value(), true, v.what);
+            NS_TEST_EXPECT_MSG_EQ(pair->EncapsulationKey() == FromHex(v.ek), true, v.what);
+            const auto secret = pair->Decapsulate(FromHex(v.c));
+            NS_TEST_ASSERT_MSG_EQ(secret.has_value(), true, v.what);
+            NS_TEST_EXPECT_MSG_EQ(*secret == FromHex(v.k), true, v.what);
+        }
+
+        const auto pair = crypto::MlKem1024KeyPair::FromSeed(FromHex(vectors::kWpMlKemValidSeed));
+        NS_TEST_ASSERT_MSG_EQ(pair.has_value(), true, "key pair of Wycheproof tcId 2");
+        const auto m = crypto::Bytes(32, 0x07);
+        const auto own = crypto::MlKem1024Encapsulate(pair->EncapsulationKey(), m);
+        NS_TEST_ASSERT_MSG_EQ(own.has_value(), true, "encapsulation to an own key");
+        const auto opened = pair->Decapsulate(own->ciphertext);
+        NS_TEST_ASSERT_MSG_EQ(opened.has_value(), true, "decapsulation of an own ciphertext");
+        NS_TEST_EXPECT_MSG_EQ(*opened == own->sharedSecret, true, "round trip gives one secret");
+
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::MlKem1024KeyPair::FromSeed(crypto::ByteView(dz).first(63)).has_value(),
+            false,
+            "a 63-byte seed is refused");
+        NS_TEST_EXPECT_MSG_EQ(
+            pair->Decapsulate(crypto::ByteView(own->ciphertext).first(1567)).has_value(),
+            false,
+            "a 1567-byte ciphertext is refused");
+        const auto ek = pair->EncapsulationKey();
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::MlKem1024Encapsulate(crypto::ByteView(ek).first(1567), m).has_value(),
+            false,
+            "a 1567-byte encapsulation key is refused");
+        NS_TEST_EXPECT_MSG_EQ(crypto::MlKem1024Encapsulate(ek, crypto::Bytes(31, 0x07)).has_value(),
+                              false,
+                              "31 bytes of randomness are refused");
+        NS_TEST_EXPECT_MSG_EQ(
+            crypto::MlKem1024Encapsulate(FromHex(vectors::kAcvpMlKemBadEk), m).has_value(),
+            false,
+            "an encapsulation key failing the modulus check (ACVP tcId 159) is refused");
+    }
+};
+
+/**
+ * @ingroup tulpar-tests
  * Crypto unit tests of M-CRY (RSD-CRY-01).
  */
 class TulparCryTestSuite : public TestSuite
@@ -321,6 +417,7 @@ class TulparCryTestSuite : public TestSuite
         AddTestCase(new TulparCryHashMacKdfTestCase, Duration::QUICK);
         AddTestCase(new TulparCryAesGcmTestCase, Duration::QUICK);
         AddTestCase(new TulparCryDeterministicRandomTestCase, Duration::QUICK);
+        AddTestCase(new TulparCryMlKemTestCase, Duration::QUICK);
     }
 };
 

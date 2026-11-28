@@ -177,6 +177,88 @@ class DeterministicRandom
     std::unique_ptr<Impl> m_impl; ///< Botan generator, kept out of this header
 };
 
+/**
+ * ML-KEM-1024 key pair (FIPS 203; RSD-CRY-01a). It is built from its seed, and no function
+ * returns its private key (RSD-CRY-02a). Move-only.
+ */
+class MlKem1024KeyPair
+{
+  public:
+    /**
+     * Build the key pair of a seed (ML-KEM.KeyGen_internal of FIPS 203).
+     *
+     * @param dz the 64-byte seed d || z
+     * @return the key pair, or nothing for a seed of another length
+     */
+    static std::optional<MlKem1024KeyPair> FromSeed(ByteView dz);
+
+    /// Destructor.
+    ~MlKem1024KeyPair();
+
+    /**
+     * Move constructor.
+     *
+     * @param other the key pair to take over
+     */
+    MlKem1024KeyPair(MlKem1024KeyPair&& other) noexcept;
+
+    /**
+     * Move assignment.
+     *
+     * @param other the key pair to take over
+     * @return this key pair
+     */
+    MlKem1024KeyPair& operator=(MlKem1024KeyPair&& other) noexcept;
+
+    MlKem1024KeyPair(const MlKem1024KeyPair&) = delete;
+    MlKem1024KeyPair& operator=(const MlKem1024KeyPair&) = delete;
+
+    /**
+     * The public half of the key pair.
+     *
+     * @return the 1568-byte encapsulation key
+     */
+    Bytes EncapsulationKey() const;
+
+    /**
+     * Decapsulate a ciphertext. A modified ciphertext gives the implicit-rejection secret of
+     * FIPS 203, not an error: the failure shows when the tag under the derived key fails.
+     *
+     * @param ciphertext the 1568-byte ciphertext
+     * @return the 32-byte shared secret, or nothing for a ciphertext of another length
+     */
+    std::optional<Bytes> Decapsulate(ByteView ciphertext) const;
+
+  private:
+    struct Impl;
+
+    /**
+     * Constructor.
+     *
+     * @param impl the Botan key
+     */
+    explicit MlKem1024KeyPair(std::unique_ptr<Impl> impl);
+
+    std::unique_ptr<Impl> m_impl; ///< Botan key, kept out of this header
+};
+
+/// Result of an ML-KEM-1024 encapsulation.
+struct MlKem1024Encapsulation
+{
+    Bytes ciphertext;   ///< 1568 bytes, for the owner of the encapsulation key
+    Bytes sharedSecret; ///< 32 bytes
+};
+
+/**
+ * Encapsulate a shared secret to an encapsulation key (ML-KEM.Encaps_internal of FIPS 203).
+ *
+ * @param encapsulationKey the 1568-byte encapsulation key
+ * @param m the 32-byte randomness, drawn by the caller from a DeterministicRandom
+ * @return the ciphertext and the shared secret, or nothing for a wrong length or for a key that
+ *         fails the modulus check of FIPS 203
+ */
+std::optional<MlKem1024Encapsulation> MlKem1024Encapsulate(ByteView encapsulationKey, ByteView m);
+
 } // namespace crypto
 } // namespace tulpar
 } // namespace ns3

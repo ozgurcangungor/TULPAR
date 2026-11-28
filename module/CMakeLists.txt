@@ -41,6 +41,7 @@ target_compile_options(tulpar_botan PRIVATE -O3 -g0 -w)
 tulpar_static_target(tulpar_crypto
   SOURCES ${TULPAR_DIR}/agent/cry/tulpar-crypto-symmetric.cc
           ${TULPAR_DIR}/agent/cry/tulpar-crypto-random.cc
+          ${TULPAR_DIR}/agent/cry/tulpar-crypto-pk.cc
   INCLUDE ${TULPAR_DIR}/agent/cry
 )
 target_link_libraries(tulpar_crypto PRIVATE tulpar_botan)
