@@ -26,11 +26,29 @@ tulpar_static_target(tulpar_common
   DEPS ${libcore}
 )
 
+# Vendored Botan 3.13.0 (RSD-CRY-01e). Only M-CRY links it (tools/deps_rules.json); it is compiled
+# optimized whatever the ns-3 build profile, so tests, runs and the benchmark use the same code.
+get_filename_component(TULPAR_REPO_DIR "${TULPAR_DIR}" REALPATH)
+get_filename_component(TULPAR_REPO_DIR "${TULPAR_REPO_DIR}" DIRECTORY)
+set(TULPAR_BOTAN_DIR ${TULPAR_REPO_DIR}/third_party/botan-3.13.0)
+tulpar_static_target(tulpar_botan
+  SOURCES ${TULPAR_BOTAN_DIR}/botan_all.cpp
+  INCLUDE ${TULPAR_BOTAN_DIR}
+)
+target_compile_options(tulpar_botan PRIVATE -O3 -g0 -w)
+
+# M-CRY crypto core: no ns-3 dependency or registration, so the test library may link it too.
+tulpar_static_target(tulpar_crypto
+  SOURCES ${TULPAR_DIR}/agent/cry/tulpar-crypto-symmetric.cc
+  INCLUDE ${TULPAR_DIR}/agent/cry
+)
+target_link_libraries(tulpar_crypto PRIVATE tulpar_botan)
+
 # M-CRY: every other module may use its services (Table 4.25, I6).
 tulpar_static_target(tulpar_cry
   SOURCES ${TULPAR_DIR}/agent/cry/tulpar-cry.cc
   INCLUDE ${TULPAR_DIR}/agent/cry
-  DEPS tulpar_common
+  DEPS tulpar_common tulpar_crypto
 )
 
 # RSD-NET-01a: the mesh core builds without its ns-3 UDP adapter.
@@ -81,7 +99,14 @@ build_lib(
                     ${libmobility}
                     ${libwifi}
   TEST_SOURCES test/tulpar-g0-test-suite.cc
+               test/tulpar-cry-test-suite.cc
 )
+
+# The crypto tests call the M-CRY crypto core directly (RSD-CRY-01). ns-3 links the test library
+# with the plain signature of target_link_libraries, which every later call must use as well.
+if(TARGET tulpar-test)
+  target_link_libraries(tulpar-test tulpar_crypto)
+endif()
 
 # Linked privately: the agent targets stay inside libtulpar and out of the ns-3
 # export set, and nothing outside the harness can link an agent module directly.

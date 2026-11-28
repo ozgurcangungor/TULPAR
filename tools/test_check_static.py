@@ -34,6 +34,14 @@ def append(root, rel, text):
     path.write_text(path.read_text(encoding='utf-8') + text, encoding='utf-8')
 
 
+def include_botan(root, rel):
+    """Plant the vendored Botan header and include it from another file (RSD-CRY-01e)."""
+    header = Path(root) / 'third_party' / 'botan-3.13.0' / 'botan_all.h'
+    header.parent.mkdir(parents=True, exist_ok=True)
+    header.write_text('// stub of the vendored Botan amalgamation header\n', encoding='utf-8')
+    append(root, rel, '\n#include "botan_all.h"\n')
+
+
 def replace(root, rel, old, new):
     path = Path(root) / rel
     content = path.read_text(encoding='utf-8')
@@ -82,6 +90,12 @@ CASES = [
     ('agent adds a static route (RSD-NET-01a)', 'routing',
      lambda r: append(r, 'module/agent/com/tulpar-com.cc',
                       '\nstatic void G(Ptr<Ipv4StaticRouting> s) { s->AddHostRouteTo(Ipv4Address(), 1); }\n')),
+    ('an agent module other than M-CRY includes Botan (RSD-CRY-01e)', 'module',
+     lambda r: include_botan(r, 'module/agent/com/tulpar-com.cc')),
+    ('M-COM target links Botan (RSD-CRY-01e)', 'module',
+     lambda r: replace(r, 'module/CMakeLists.txt',
+                       'DEPS tulpar_common tulpar_cry tulpar_mesh_core',
+                       'DEPS tulpar_common tulpar_cry tulpar_botan tulpar_mesh_core')),
 ]
 
 

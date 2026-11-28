@@ -1,5 +1,5 @@
 {
-  "description": "Dependency rules of the TULPAR agent, checked by tools/check_static.py. Sources: RSD v1.1 Section 2.3, Table 4.25 (internal interfaces) and Table 5.1 (MD1, MD5, MD9, MD14, MD19). Modules exchange data only through the interfaces of Table 4.25, which the agent root wires together; a module never includes another module's headers, except the services of M-CRY (I6).",
+  "description": "Dependency rules of the TULPAR agent, checked by tools/check_static.py. Sources: RSD v1.1 Section 2.3, Table 4.25 (internal interfaces) and Table 5.1 (MD1, MD5, MD9, MD14, MD19). Modules exchange data only through the interfaces of Table 4.25, which the agent root wires together; a module never includes another module's headers, except the services of M-CRY (I6). Botan (third_party) is reachable only from M-CRY (RSD-CRY-01e).",
   "parts": {
     "common": "module/common",
     "cry": "module/agent/cry",
@@ -11,12 +11,13 @@
     "mis": "module/agent/mis",
     "lsc": "module/agent/lsc",
     "root": "module/agent/root",
-    "sim": "module/sim"
+    "sim": "module/sim",
+    "botan": "third_party/botan-3.13.0"
   },
   "agent_parts": ["common", "cry", "com", "del", "evs", "obs", "sec", "mis", "lsc", "root"],
   "may_include": {
     "common": ["common"],
-    "cry": ["common", "cry"],
+    "cry": ["common", "cry", "botan"],
     "com": ["common", "cry", "com"],
     "del": ["common", "cry", "del"],
     "evs": ["common", "cry", "evs"],
@@ -25,11 +26,13 @@
     "mis": ["common", "cry", "mis"],
     "lsc": ["common", "lsc"],
     "root": ["common", "cry", "com", "del", "evs", "obs", "sec", "mis", "lsc", "root"],
-    "sim": ["common", "root", "sim"]
+    "sim": ["common", "root", "sim"],
+    "botan": ["botan"]
   },
   "cmake_targets": {
     "tulpar_common": "common",
     "tulpar_cry": "cry",
+    "tulpar_crypto": "cry",
     "tulpar_com": "com",
     "tulpar_mesh_core": "com",
     "tulpar_del": "del",
@@ -38,7 +41,8 @@
     "tulpar_sec": "sec",
     "tulpar_mis": "mis",
     "tulpar_lsc": "lsc",
-    "tulpar_agent": "root"
+    "tulpar_agent": "root",
+    "tulpar_botan": "botan"
   },
   "harness_ns3_headers": ["ns3/tulpar-scenario.h", "ns3/tulpar-module.h"],
   "rule_ids": {
